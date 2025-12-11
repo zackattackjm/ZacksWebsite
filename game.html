@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Light Cycle Arena - Levels</title>
+    <style>
+        body {
+            background-color: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            font-family: 'Consolas', monospace;
+            color: #fff;
+        }
+
+        #game-container {
+            display: flex;
+            gap: 20px;
+            padding: 20px;
+            /* Outer border style matching the example */
+            border: 4px solid #00ffff; 
+            box-shadow: 0 0 15px #00ffff;
+        }
+
+        #canvas-wrapper {
+            position: relative;
+        }
+
+        #game-canvas {
+            background-color: #111;
+            display: block;
+        }
+
+        .hud {
+            width: 250px;
+            padding: 15px;
+            background: #1a1a1a;
+            border: 2px solid #00ffff;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            box-shadow: inset 0 0 10px rgba(0, 255, 255, 0.5);
+        }
+
+        .hud h2 {
+            margin-top: 0;
+            color: #00ffff;
+            border-bottom: 2px solid #00ffff;
+            padding-bottom: 5px;
+            font-size: 1.5em;
+        }
+
+        .score-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 1.1em;
+            padding: 2px 0;
+        }
+
+        /* --- Screens --- */
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            text-align: center;
+        }
+
+        .screen-content {
+            border: 4px solid #00ffff;
+            padding: 30px;
+            box-shadow: 0 0 25px #00ffff;
+        }
+
+        .screen-content h1 {
+            color: #ff00ff;
+            font-size: 3em;
+            margin-bottom: 20px;
+        }
+
+        .color-option {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin: 0 10px;
+            cursor: pointer;
+            border: 4px solid transparent;
+            transition: border-color 0.2s;
+        }
+
+        .color-option:hover, .color-option.selected {
+            border-color: #fff;
+        }
+
+        button {
+            background: #00ffff;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1.2em;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background 0.2s;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background: #fff;
+        }
+        
+        #instruction-text {
+            color: #ffaa00;
+            font-size: 1.5em;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation: pulse 1s infinite alternate;
+            text-shadow: 0 0 10px #ffaa00;
+            display: none; /* Only show when waiting for input */
+            text-align: center;
+        }
+        
+        @keyframes pulse {
+            from { opacity: 1; }
+            to { opacity: 0.5; }
+        }
+        
+        /* Specific styling for the HUD level display */
+        #level-display {
+            font-weight: bold;
+            color: #ff00ff;
+        }
+        
+        #kills-needed-display {
+            color: #ffaa00;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="canvas-wrapper">
+            <!-- Game Canvas -->
+            <canvas id="game-canvas" width="600" height="600"></canvas>
+            
+            <!-- Delayed Start Instruction / Level Complete Message -->
+            <div id="instruction-text">PRESS ARROW KEYS TO START</div>
+
+            <!-- Start Screen -->
+            <div id="start-screen">
+                <div class="screen-content">
+                    <h1>LIGHT CYCLE ARENA</h1>
+                    <h3>Choose Your Bike Color</h3>
+                    <div id="color-options">
+                        <span class="color-option" style="background-color: #00ff00;" data-color="#00ff00"></span>
+                        <span class="color-option" style="background-color: #ff0000;" data-color="#ff0000"></span>
+                        <span class="color-option" style="background-color: #ffaa00;" data-color="#ffaa00"></span>
+                        <span class="color-option" style="background-color: #ff00ff;" data-color="#ff00ff"></span>
+                        <span class="color-option" style="background-color: #00aaff;" data-color="#00aaff"></span>
+                    </div>
+                    <button onclick="prepareGame()">START GAME</button>
+                    <p style="font-size: 0.9em; margin-top: 20px;">
+                        Controls: **Arrow Keys** (Up, Down, Left, Right)
+                    </p>
+                </div>
+            </div>
+
+            <!-- Game Over Screen -->
+            <div id="game-over-screen" style="display: none;">
+                <div class="screen-content">
+                    <h1>GAME OVER</h1>
+                    <p id="final-score" style="font-size: 1.5em;"></p>
+                    <button onclick="restartGame()">RESTART</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- HUD/Scoreboard -->
+        <div class="hud">
+            <h2>SCOREBOARD</h2>
+            <div class="score-item">
+                <span>Player Color:</span> 
+                <span id="player-color-display" style="color: #00ffff;"></span>
+            </div>
+            <div class="score-item">
+                <span>Total Kills:</span> 
+                <span id="score-kills">0</span>
+            </div>
+            <div class="score-item">
+                <span>Survival Time:</span> 
+                <span id="score-time">0.0s</span>
+            </div>
+            
+            <h2 style="color: #ff00ff;">LEVEL STATUS</h2>
+            <div class="score-item">
+                <span>Current Level:</span> 
+                <span id="level-display">1</span>
+            </div>
+            <div class="score-item">
+                <span>Enemies Defeated:</span> 
+                <span id="enemies-defeated-display">0</span>
+            </div>
+            <div class="score-item">
+                <span>Kills Needed:</span> 
+                <span id="kills-needed-display">5</span>
+            </div>
+            <div class="score-item">
+                <span>Enemies Alive:</span> 
+                <span id="enemies-count">0</span>
+            </div>
+
+            <h2 style="color: #ffaa00;">DIFFICULTY</h2>
+            <div class="score-item">
+                <span>Spawn Interval:</span> 
+                <span id="spawn-interval-display"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const instructionText = document.getElementById('instruction-text');
+        const finalScoreDisplay = document.getElementById('final-score');
+
+        // --- Game Constants ---
+        const GRID_SIZE = 15; // Size of each cell in pixels
+        const COLS = canvas.width / GRID_SIZE; // 40
+        const ROWS = canvas.height / GRID_SIZE; // 40
+        const WALL_COLOR = '#00ffff'; // Neon cyan for static walls
+        const STATIC_WALL_ID = 999;
+        const LINE_WIDTH = GRID_SIZE - 4; // Width of the bike trail line
+        const TRAIL_OFFSET = 2; // (GRID_SIZE - LINE_WIDTH) / 2
+
+        // --- Game State ---
+        let playerColor = '#00ff00'; 
+        let gameActive = false; // True when movement/collision are active
+        let gamePrepared = false; // True when player has chosen color and pressed start
+        let lastTime = 0;
+        let accumulator = 0; 
+        const FRAME_TIME = 100; // Time in ms for one update step
+
+        let bikes = []; 
+        let trailGrid; // 2D array: 0: empty, 1-N: bike ID, 999: static wall
+        let bikeCounter = 0; 
+
+        let scoreKills = 0; // Kills this level
+        let totalKills = 0; // Kills across all levels
+        let startTime = 0;
+        let lastSpawnTime = 0;
+        let spawnInterval = 3000; 
+
+        let currentLevel = 1;
+        let requiredKills = 5;
+
+        // --- Map Definitions ---
+        // Generates the static map layout based on the current level
+        function defineMap(level) {
+            const mapGrid = Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
+            
+            // Helper to draw a line (Horizontal or Vertical)
+            const drawLine = (x1, y1, x2, y2) => {
+                for (let x = Math.min(x1, x2); x <= Math.max(x1, x2); x++) {
+                    for (let y = Math.min(y1, y2); y <= Math.max(y1, y2); y++) {
+                        if (x >= 0 && x < COLS && y >= 0 && y < ROWS) {
+                            mapGrid[y][x] = STATIC_WALL_ID;
+                        }
+                    }
+                }
+            };
+            
+            // Level 1: Open Arena (No internal walls, just outer border)
+            if (level === 1) {
+                // No action needed, mapGrid remains all 0s.
+            } 
+            // Level 2: Corner Walls
+            else if (level === 2) {
+                const L = 8; // Length of wall segment
+                // Top Left
+                drawLine(4, 4, 4, 4 + L);
+                drawLine(4, 4, 4 + L, 4);
+                // Top Right
+                drawLine(COLS - 5, 4, COLS - 5, 4 + L);
+                drawLine(COLS - 5 - L, 4, COLS - 5, 4);
+                // Bottom Left
+                drawLine(4, ROWS - 5 - L, 4, ROWS - 5);
+                drawLine(4, ROWS - 5, 4 + L, ROWS - 5);
+                // Bottom Right
+                drawLine(COLS - 5, ROWS - 5 - L, COLS - 5, ROWS - 5);
+                drawLine(COLS - 5 - L, ROWS - 5, COLS - 5, ROWS - 5);
+            } 
+            // Level 3: Central Cross
+            else if (level === 3) {
+                const center = Math.floor(COLS / 2);
+                const halfLength = 10;
+                // Vertical center line
+                drawLine(center - 1, center - halfLength, center + 1, center + halfLength);
+                // Horizontal center line
+                drawLine(center - halfLength, center - 1, center + halfLength, center + 1);
+            }
+            
+            return mapGrid;
+        }
+
+
+        // --- Bike Class (Player or Enemy) ---
+        class Bike {
+            constructor(x, y, color, isPlayer = false) {
+                this.id = ++bikeCounter;
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.isPlayer = isPlayer;
+                this.direction = isPlayer ? 'UP' : ['UP', 'DOWN', 'LEFT', 'RIGHT'][Math.floor(Math.random() * 4)];
+                this.nextDirection = this.direction;
+                this.alive = true;
+                this.trail = [{x, y}];
+            }
+
+            setDirection(newDir) {
+                if (newDir === 'UP' && this.direction !== 'DOWN') this.nextDirection = newDir;
+                else if (newDir === 'DOWN' && this.direction !== 'UP') this.nextDirection = newDir;
+                else if (newDir === 'LEFT' && this.direction !== 'RIGHT') this.nextDirection = newDir;
+                else if (newDir === 'RIGHT' && this.direction !== 'LEFT') this.nextDirection = newDir;
+            }
+
+            updateDirection() {
+                if (this.isPlayer) {
+                    this.direction = this.nextDirection;
+                    return;
+                }
+
+                // AI Logic (re-using previous simple collision avoidance)
+                this.direction = this.nextDirection;
+                let moves = ['UP', 'DOWN', 'LEFT', 'RIGHT'];
+                let bestDir = this.direction;
+
+                for (let dir of moves) {
+                    let nextX = this.x;
+                    let nextY = this.y;
+                    if (dir === 'UP') nextY--;
+                    if (dir === 'DOWN') nextY++;
+                    if (dir === 'LEFT') nextX--;
+                    if (dir === 'RIGHT') nextX++;
+
+                    const isSafe = !this.checkCollision(nextX, nextY) &&
+                        !((dir === 'UP' && this.direction === 'DOWN') || (dir === 'DOWN' && this.direction === 'UP') ||
+                         (dir === 'LEFT' && this.direction === 'RIGHT') || (dir === 'RIGHT' && this.direction === 'LEFT'));
+                    
+                    if (isSafe) {
+                        bestDir = dir;
+                        break; 
+                    }
+                }
+                this.nextDirection = bestDir;
+                this.direction = bestDir;
+            }
+
+            checkCollision(checkX, checkY) {
+                // 1. Wall collision (Outer boundary)
+                if (checkX < 0 || checkX >= COLS || checkY < 0 || checkY >= ROWS) {
+                    return true;
+                }
+                // 2. Trail/Obstacle collision (Bike trails or static map walls)
+                if (trailGrid[checkY][checkX] !== 0) {
+                    // Allow bike to hit its own trail *head* which is the last point in the trail
+                    const isHittingOwnHead = this.trail.length > 0 && 
+                                             checkX === this.trail[this.trail.length - 1].x && 
+                                             checkY === this.trail[this.trail.length - 1].y;
+                    
+                    if (trailGrid[checkY][checkX] !== this.id || !isHittingOwnHead) {
+                         return true;
+                    }
+                }
+                return false;
+            }
+
+            move() {
+                if (!this.alive) return;
+                
+                // Player only moves if gameActive is true
+                if (!this.isPlayer || gameActive) {
+                    this.updateDirection();
+                } else {
+                    return; 
+                }
+
+                let nextX = this.x;
+                let nextY = this.y;
+
+                if (this.direction === 'UP') nextY--;
+                else if (this.direction === 'DOWN') nextY++;
+                else if (this.direction === 'LEFT') nextX--;
+                else if (this.direction === 'RIGHT') nextX++;
+
+                if (this.checkCollision(nextX, nextY)) {
+                    this.alive = false;
+                    if (this.isPlayer) {
+                        gameOver();
+                    } else {
+                        scoreKills++;
+                        totalKills++;
+                        checkLevelCompletion();
+                    }
+                    return;
+                }
+
+                // Update position and trail
+                this.x = nextX;
+                this.y = nextY;
+                this.trail.push({x: nextX, y: nextY});
+                trailGrid[nextY][nextX] = this.id;
+            }
+
+            // Custom draw method to match the desired look
+            draw() {
+                // 1. Draw the trail segments (thick lines)
+                ctx.fillStyle = this.color; 
+                ctx.lineWidth = LINE_WIDTH;
+                ctx.strokeStyle = this.color;
+
+                for (let i = 0; i < this.trail.length - 1; i++) {
+                    const p1 = this.trail[i];
+                    const p2 = this.trail[i + 1];
+
+                    // Draw a line from center of p1 to center of p2
+                    ctx.beginPath();
+                    ctx.moveTo(p1.x * GRID_SIZE + GRID_SIZE / 2, p1.y * GRID_SIZE + GRID_SIZE / 2);
+                    ctx.lineTo(p2.x * GRID_SIZE + GRID_SIZE / 2, p2.y * GRID_SIZE + GRID_SIZE / 2);
+                    ctx.stroke();
+
+                    // Fill the square where the point exists to make the line look continuous and thick
+                    ctx.fillRect(p1.x * GRID_SIZE + TRAIL_OFFSET, p1.y * GRID_SIZE + TRAIL_OFFSET, LINE_WIDTH, LINE_WIDTH);
+                }
+                
+                // 2. Draw the last trail segment square (the one right behind the head)
+                if (this.trail.length > 0) {
+                     const lastTrail = this.trail[this.trail.length - 1];
+                     ctx.fillRect(lastTrail.x * GRID_SIZE + TRAIL_OFFSET, lastTrail.y * GRID_SIZE + TRAIL_OFFSET, LINE_WIDTH, LINE_WIDTH);
+                }
+
+                // 3. Draw the bike head (solid, full block)
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x * GRID_SIZE, this.y * GRID_SIZE, GRID_SIZE, GRID_SIZE);
+
+                // 4. Draw a white highlight on the head
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(this.x * GRID_SIZE + 4, this.y * GRID_SIZE + 4, GRID_SIZE - 8, GRID_SIZE - 8);
+            }
+        }
+
+        // --- Game Setup and Control ---
+
+        function initGrid() {
+            // Load static map obstacles for the current level
+            const staticMap = defineMap(currentLevel);
+            
+            // Initialize trail grid with static map data
+            trailGrid = staticMap.map(row => [...row]); 
+            bikes = [];
+            bikeCounter = 0;
+            scoreKills = 0;
+            
+            // Set required kills based on level
+            requiredKills = 5 + (currentLevel - 1) * 3; // 5, 8, 11...
+        }
+
+        function spawnPlayer() {
+            // Spawn player in the exact center
+            const startX = Math.floor(COLS / 2);
+            const startY = Math.floor(ROWS / 2);
+            
+            const playerBike = new Bike(startX, startY, playerColor, true);
+            bikes.push(playerBike);
+            // Mark the player's starting trail point
+            trailGrid[playerBike.y][playerBike.x] = playerBike.id;
+        }
+
+        function spawnEnemy() {
+            if (scoreKills >= requiredKills) return; // Don't spawn if quota is met
+
+            let spawnPoints = [
+                {x: COLS - 5, y: Math.floor(ROWS / 2), dir: 'LEFT'}, 
+                {x: 5, y: 5, dir: 'DOWN'}, 
+                {x: COLS - 5, y: ROWS - 5, dir: 'UP'},
+                {x: 5, y: ROWS - 5, dir: 'RIGHT'} 
+            ];
+            
+            const point = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
+            const enemyColor = getEnemyColor();
+            
+            const enemyBike = new Bike(point.x, point.y, enemyColor, false);
+            enemyBike.nextDirection = point.dir;
+            
+            // Check if spawn point is clear (important for maps with obstacles)
+            if (trailGrid[point.y][point.x] === 0) {
+                 bikes.push(enemyBike);
+                 trailGrid[enemyBike.y][enemyBike.x] = enemyBike.id;
+            }
+        }
+
+        function getEnemyColor() {
+            const allColors = ['#00ff00', '#ff0000', '#ffaa00', '#ff00ff', '#00aaff'];
+            const availableColors = allColors.filter(color => color !== playerColor);
+            return availableColors[Math.floor(Math.random() * availableColors.length)];
+        }
+
+        function updateGame(deltaTime) {
+            accumulator += deltaTime;
+            while (accumulator >= FRAME_TIME) {
+                // 1. Move all bikes
+                bikes.forEach(bike => bike.move());
+                
+                // 2. Remove dead bikes
+                bikes = bikes.filter(bike => bike.alive);
+                
+                // 3. Spawn new enemies (Only if game is active)
+                if (gameActive) {
+                    const timeSinceStart = Date.now() - startTime;
+                    if (Date.now() - lastSpawnTime > spawnInterval) {
+                        spawnEnemy();
+                        lastSpawnTime = Date.now();
+                    }
+                    
+                    // 4. Increase Difficulty (decrease spawn interval over time)
+                    spawnInterval = Math.max(500, 3000 - Math.floor(timeSinceStart / 1000) * 100);
+                }
+
+                accumulator -= FRAME_TIME;
+            }
+            
+            updateScoreboard();
+        }
+        
+        function drawGame() {
+            // Clear canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw borders
+            ctx.strokeStyle = WALL_COLOR;
+            ctx.lineWidth = 4;
+            ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+            // Draw static map walls
+            drawStaticWalls();
+            
+            // Draw all bike trails and heads
+            bikes.forEach(bike => bike.draw());
+        }
+        
+        function drawStaticWalls() {
+            ctx.fillStyle = WALL_COLOR;
+            for(let r = 0; r < ROWS; r++) {
+                for(let c = 0; c < COLS; c++) {
+                    if (trailGrid[r][c] === STATIC_WALL_ID) {
+                        ctx.fillRect(c * GRID_SIZE, r * GRID_SIZE, GRID_SIZE, GRID_SIZE);
+                    }
+                }
+            }
+        }
+
+        // --- Game Loop ---
+
+        function gameLoop(time) {
+            if (!gamePrepared) return;
+
+            const deltaTime = time - lastTime;
+            lastTime = time;
+
+            updateGame(deltaTime);
+            drawGame();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- Level Management ---
+
+        function checkLevelCompletion() {
+            // Check if player is the only one left AND the kill quota is met
+            if (scoreKills >= requiredKills && bikes.length === 1 && gameActive) {
+                gameActive = false;
+                
+                instructionText.innerHTML = `LEVEL ${currentLevel} COMPLETE!<br><br>PRESS ARROW KEY TO START LEVEL ${currentLevel + 1}`;
+                instructionText.style.display = 'block';
+
+                // Setup the next level in the background
+                currentLevel++;
+            }
+        }
+
+        function startNextLevel() {
+             // Reset state for the new level
+            initGrid();
+            spawnPlayer();
+            
+            // Reset timers and activate game
+            instructionText.style.display = 'none'; 
+            gameActive = true; 
+            startTime = Date.now(); 
+            lastSpawnTime = Date.now();
+            spawnInterval = 3000;
+            
+            // Spawn initial enemy
+            spawnEnemy();
+        }
+
+        // --- HUD and Scoreboard ---
+        
+        function updateScoreboard() {
+            const timeElapsed = gameActive ? ((Date.now() - startTime) / 1000).toFixed(1) : "0.0";
+            
+            document.getElementById('player-color-display').textContent = playerColor;
+            document.getElementById('player-color-display').style.color = playerColor;
+            document.getElementById('score-kills').textContent = totalKills;
+            document.getElementById('score-time').textContent = timeElapsed + 's';
+            
+            document.getElementById('level-display').textContent = currentLevel;
+            document.getElementById('enemies-defeated-display').textContent = scoreKills;
+            document.getElementById('kills-needed-display').textContent = requiredKills;
+
+            const enemiesCount = bikes.length > 0 ? bikes.length - 1 : 0;
+            document.getElementById('enemies-count').textContent = enemiesCount;
+            document.getElementById('spawn-interval-display').textContent = (spawnInterval / 1000).toFixed(2) + 's';
+        }
+
+        // --- Game State Functions ---
+
+        function prepareGame() {
+            if (!playerColor) {
+                alert("Please select a color before starting!");
+                return;
+            }
+            
+            startScreen.style.display = 'none';
+            instructionText.innerHTML = `PRESS ARROW KEYS TO START`;
+            instructionText.style.display = 'block'; 
+            
+            gamePrepared = true;
+            gameActive = false; 
+            
+            // Set initial state for Level 1
+            currentLevel = 1;
+            totalKills = 0;
+            initGrid();
+            spawnPlayer();
+            updateScoreboard(); // Update HUD with initial level/kill count
+            
+            requestAnimationFrame(gameLoop);
+        }
+
+        function activateGame(direction) {
+            if (!gamePrepared) return;
+
+            if (currentLevel > 1 && !gameActive) {
+                // If transitioning from a completed level
+                startNextLevel();
+            } else if (currentLevel === 1 && !gameActive) {
+                // Initial game start
+                instructionText.style.display = 'none'; 
+                gameActive = true; 
+                
+                const player = bikes[0];
+                player.setDirection(direction); 
+                player.direction = direction;
+                
+                player.move(); 
+                
+                startTime = Date.now(); 
+                lastSpawnTime = Date.now();
+                spawnEnemy(); 
+            }
+        }
+
+        function gameOver() {
+            gameActive = false;
+            gamePrepared = false;
+            const timeElapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+            
+            finalScoreDisplay.innerHTML = `
+                Time Survived: <span style="color:#00ffff;">${timeElapsed}s</span><br>
+                Total Cycles Destroyed: <span style="color:#ff00ff;">${totalKills}</span>
+            `;
+            gameOverScreen.style.display = 'flex';
+        }
+
+        function restartGame() {
+            gameOverScreen.style.display = 'none';
+            startScreen.style.display = 'flex';
+        }
+
+        // --- Event Listeners ---
+
+        document.getElementById('color-options').addEventListener('click', (e) => {
+            if (e.target.classList.contains('color-option')) {
+                document.querySelectorAll('.color-option').forEach(el => el.classList.remove('selected'));
+                e.target.classList.add('selected');
+                playerColor = e.target.getAttribute('data-color');
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (!gamePrepared || bikes.length === 0) return;
+            const player = bikes[0];
+            
+            let direction = null;
+            switch (e.key) {
+                case 'ArrowUp':
+                    direction = 'UP';
+                    e.preventDefault();
+                    break;
+                case 'ArrowDown':
+                    direction = 'DOWN';
+                    e.preventDefault();
+                    break;
+                case 'ArrowLeft':
+                    direction = 'LEFT';
+                    e.preventDefault();
+                    break;
+                case 'ArrowRight':
+                    direction = 'RIGHT';
+                    e.preventDefault();
+                    break;
+            }
+            
+            if (direction) {
+                if (!gameActive && gamePrepared) {
+                    // Activate or start next level
+                    activateGame(direction);
+                } else if (gameActive) {
+                    // Change direction during active play
+                    player.setDirection(direction);
+                }
+            }
+        });
+
+        initGrid();
+
+    </script>
+</body>
+</html>
